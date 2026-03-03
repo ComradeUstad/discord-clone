@@ -1,0 +1,152 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  username      String
+  passwordHash  String
+  avatarUrl     String?
+  status        Status    @default(OFFLINE)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  servers       ServerMember[]
+  messages      Message[]
+  conversations ConversationMember[]
+  ownedServers  Server[]
+}
+
+model Server {
+  id          String   @id @default(cuid())
+  name        String
+  icon        String?
+  ownerId     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  owner       User           @relation(fields: [ownerId], references: [id])
+  members     ServerMember[]
+  channels    Channel[]
+  roles       Role[]
+}
+
+model ServerMember {
+  id        String   @id @default(cuid())
+  userId    String
+  serverId  String
+  roleId    String?
+  joinedAt  DateTime @default(now())
+  
+  user      User   @relation(fields: [userId], references: [id])
+  server    Server @relation(fields: [serverId], references: [id])
+  role      Role?  @relation(fields: [roleId], references: [id])
+
+  @@unique([userId, serverId])
+}
+
+model Channel {
+  id          String   @id @default(cuid())
+  serverId    String
+  name        String
+  type        ChannelType @default(TEXT)
+  position    Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  server      Server    @relation(fields: [serverId], references: [id])
+  messages    Message[]
+}
+
+model Message {
+  id          String   @id @default(cuid())
+  channelId   String
+  senderId    String
+  content     String
+  attachmentUrl String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  channel     Channel   @relation(fields: [channelId], references: [id])
+  sender      User      @relation(fields: [senderId], references: [id])
+  reactions   Reaction[]
+}
+
+model Reaction {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+  
+  message   Message @relation(fields: [messageId], references: [id])
+  user      User    @relation(fields: [userId], references: [id])
+
+  @@unique([messageId, userId, emoji])
+}
+
+model Conversation {
+  id        String   @id @default(cuid())
+  isGroup   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  
+  members   ConversationMember[]
+  messages  DirectMessage[]
+}
+
+model ConversationMember {
+  id             String       @id @default(cuid())
+  conversationId String
+  userId         String
+  joinedAt       DateTime     @default(now())
+  
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  user           User         @relation(fields: [userId], references: [id])
+
+  @@unique([conversationId, userId])
+}
+
+model DirectMessage {
+  id             String       @id @default(cuid())
+  conversationId String
+  senderId       String
+  content        String
+  attachmentUrl  String?
+  createdAt      DateTime     @default(now())
+  
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  sender         User         @relation(fields: [senderId], references: [id])
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  serverId    String
+  name        String
+  permissions Json     @default("[]")
+  color       String?  @default("#99aab5")
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  
+  server      Server       @relation(fields: [serverId], references: [id])
+  members     ServerMember[]
+
+  @@unique([serverId, name])
+}
+
+enum Status {
+  ONLINE
+  OFFLINE
+  IDLE
+  DND
+}
+
+enum ChannelType {
+  TEXT
+  VOICE
+}
